@@ -88,3 +88,33 @@ def test_rejects_bad_leader() -> None:
     timings = _encode(0x00, 0x0C)
     timings[0] = 1000
     assert decode_rc6(timings) is None
+
+
+def test_many_repeated_captures_decode_identically() -> None:
+    """Same physical command should survive independently jittered captures."""
+    expected = (0x00, 0x5A)
+    for toggle in (0, 1):
+        for seed in range(100):
+            random.seed(seed + toggle * 1000)
+            timings = _encode(*expected, toggle=toggle)
+            # Independent run jitter is much nastier than scaling the whole
+            # frame equally and better approximates demodulator captures.
+            jittered = [
+                int(value * random.uniform(0.82, 1.18))
+                for value in timings
+            ]
+            frame = decode_rc6(jittered)
+            assert frame is not None, (seed, toggle, jittered)
+            assert (frame.address, frame.command, frame.toggle) == (*expected, toggle)
+
+
+def test_asymmetric_mark_space_distortion() -> None:
+    """IR demodulators commonly stretch one polarity and shrink the other."""
+    timings = _encode(0x34, 0xA7, toggle=1)
+    distorted = [
+        int(value * (1.12 if value > 0 else 0.88))
+        for value in timings
+    ]
+    frame = decode_rc6(distorted)
+    assert frame is not None
+    assert (frame.address, frame.command, frame.toggle) == (0x34, 0xA7, 1)

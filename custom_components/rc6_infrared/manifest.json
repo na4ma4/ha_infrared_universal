@@ -3,9 +3,11 @@
   "name": "RC6 Infrared",
   "codeowners": [],
   "config_flow": true,
-  "dependencies": ["infrared"],
+  "dependencies": [
+    "infrared"
+  ],
   "documentation": "https://github.com/example/rc6-infrared",
   "integration_type": "device",
   "iot_class": "local_push",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

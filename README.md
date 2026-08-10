@@ -122,8 +122,7 @@ raw timings.
 ## Decoder scope
 
 This first version deliberately supports **RC6 Mode 0 only**, matching the mode
-ESPHome's own RC6 decoder currently accepts. It estimates the RC6 timing unit
-from the 6T/2T leader and tolerates timing jitter before Manchester decoding.
+ESPHome's own RC6 decoder currently accepts. It uses the fixed RC6 444 us timing unit and evaluates ambiguous 1T/2T/3T run interpretations against the complete frame. This avoids a shortened 3T run being greedily mistaken for 2T and shifting the decoded command. Ambiguous captures are rejected instead of emitting a potentially wrong button event.
 
 The decoder itself has no Home Assistant dependency and lives in `decoder.py`,
 so it can later be moved into `infrared-protocols` if this graduates into an
@@ -146,3 +145,11 @@ Experimental. The Home Assistant integration structure follows the current
 2026 receiver API and the official LG infrared consumer pattern, but this has
 not yet been exercised against a real KinCony receiver. That hardware test is
 the useful next step.
+
+
+## 0.2.0 decoder changes
+
+- Replaced greedy half-bit reconstruction with whole-frame candidate decoding.
+- Handles ambiguous 2T/3T runs caused by demodulator timing distortion.
+- Rejects near-tied interpretations rather than publishing a wrong command.
+- Added repeated-capture and asymmetric mark/space distortion tests.
