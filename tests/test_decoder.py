@@ -118,3 +118,65 @@ def test_asymmetric_mark_space_distortion() -> None:
     frame = decode_rc6(distorted)
     assert frame is not None
     assert (frame.address, frame.command, frame.toggle) == (0x34, 0xA7, 1)
+
+
+def test_terminal_space_merged_into_idle_gap() -> None:
+    """A long idle gap may contain the last space of an odd command."""
+    timings = _encode(0x3B, 0x1D, toggle=0)
+    assert timings[-1] < 0
+    timings[-1] = -10_000
+
+    frame = decode_rc6(timings)
+
+    assert frame is not None
+    assert (frame.address, frame.command, frame.toggle) == (0x3B, 0x1D, 0)
+
+
+def test_real_button_2_capture_with_terminal_idle_gap() -> None:
+    timings = [
+        2756,
+        -891,
+        435,
+        -902,
+        480,
+        -453,
+        435,
+        -476,
+        434,
+        -925,
+        903,
+        -458,
+        456,
+        -454,
+        903,
+        -457,
+        457,
+        -453,
+        457,
+        -902,
+        903,
+        -458,
+        457,
+        -903,
+        433,
+        -478,
+        455,
+        -454,
+        903,
+        -457,
+        457,
+        -454,
+        457,
+        -903,
+        903,
+        -10_000,
+    ]
+
+    frame = decode_rc6(timings)
+
+    assert frame is not None
+    assert (frame.address, frame.command, frame.toggle) == (0x3B, 0x1D, 0)
+
+
+def test_idle_gap_does_not_complete_a_short_noise_capture() -> None:
+    assert decode_rc6([171, -10_000]) is None

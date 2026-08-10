@@ -149,6 +149,19 @@ def decode_rc6(timings: Iterable[int]) -> RC6Frame | None:
     for run in values[2:]:
         run_candidates = _candidate_units(run)
         if not run_candidates:
+            # A trailing idle gap can include the final space half-bit. This
+            # occurs when an RC6 payload ends in 1: the receiver reports the
+            # final protocol space and the following idle period as one long
+            # negative duration. Only use it to finish a frame that is exactly
+            # one half-unit short; never guess a larger missing suffix.
+            if run < 0:
+                for levels, score in states:
+                    if len(levels) != _REQUIRED_HALF_UNITS_MODE0 - 1:
+                        continue
+                    frame = _decode_levels(levels + (False,))
+                    if frame is not None:
+                        completed.append((frame, score))
+
             # A long trailing idle gap after a complete frame is harmless.
             if completed:
                 break
