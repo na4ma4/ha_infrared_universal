@@ -1,0 +1,90 @@
+"""Tests for the standalone RC6 decoder."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import random
+
+DECODER_PATH = (
+    Path(__file__).parents[1]
+    / "custom_components"
+    / "rc6_infrared"
+    / "decoder.py"
+)
+spec = importlib.util.spec_from_file_location("rc6_decoder", DECODER_PATH)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+import sys
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+decode_rc6 = module.decode_rc6
+
+T = 444
+
+
+def _bit_levels(bit: int) -> list[bool]:
+    return [True, False] if bit else [False, True]
+
+
+def _encode(address: int, command: int, toggle: int = 0, mode: int = 0) -> list[int]:
+    levels: list[bool] = []
+    for bit in [1, (mode >> 2) & 1, (mode >> 1) & 1, mode & 1]:
+        levels.extend(_bit_levels(bit))
+    levels.extend([True, True, False, False] if toggle else [False, False, True, True])
+    raw = (address << 8) | command
+    for shift in range(15, -1, -1):
+        levels.extend(_bit_levels((raw >> shift) & 1))
+
+    timings = [6 * T, -(2 * T)]
+    for level in levels:
+        value = T if level else -T
+        if timings and (timings[-1] > 0) == (value > 0):
+            timings[-1] += value
+        else:
+            timings.append(value)
+    return timings
+
+
+def test_decode_known_frame() -> None:
+    frame = decode_rc6(_encode(0x00, 0x0C, toggle=1))
+    assert frame is not None
+    assert frame.mode == 0
+    assert frame.toggle == 1
+    assert frame.address == 0x00
+    assert frame.command == 0x0C
+
+
+def test_decode_arbitrary_frame() -> None:
+    frame = decode_rc6(_encode(0x7A, 0xE1, toggle=0))
+    assert frame is not None
+    assert (frame.address, frame.command, frame.toggle) == (0x7A, 0xE1, 0)
+
+
+def test_accepts_unsigned_alternating_timings() -> None:
+    timings = [abs(value) for value in _encode(0x12, 0x34, toggle=1)]
+    frame = decode_rc6(timings)
+    assert frame is not None
+    assert (frame.address, frame.command) == (0x12, 0x34)
+
+
+def test_tolerates_realistic_jitter() -> None:
+    random.seed(6)
+    timings = _encode(0x21, 0x9A, toggle=1)
+    jittered = [
+        int(value * random.uniform(0.90, 1.10))
+        for value in timings
+    ]
+    frame = decode_rc6(jittered)
+    assert frame is not None
+    assert (frame.address, frame.command, frame.toggle) == (0x21, 0x9A, 1)
+
+
+def test_rejects_nonzero_mode() -> None:
+    assert decode_rc6(_encode(0x00, 0x0C, mode=1)) is None
+
+
+def test_rejects_bad_leader() -> None:
+    timings = _encode(0x00, 0x0C)
+    timings[0] = 1000
+    assert decode_rc6(timings) is None
