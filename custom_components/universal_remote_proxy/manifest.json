@@ -1,0 +1,14 @@
+{
+  "domain": "universal_remote_proxy",
+  "name": "Universal Remote Infrared Proxy",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [
+    "infrared"
+  ],
+  "documentation": "https://github.com/na4ma4/ha_infrared_universal",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/na4ma4/ha_infrared_universal/issues",
+  "version": "0.3.0"
+}

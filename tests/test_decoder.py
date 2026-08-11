@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 import random
+import sys
+from pathlib import Path
 
 DECODER_PATH = (
     Path(__file__).parents[1]
     / "custom_components"
-    / "rc6_infrared"
+    / "universal_remote_proxy"
     / "decoder.py"
 )
 spec = importlib.util.spec_from_file_location("rc6_decoder", DECODER_PATH)
 assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
-import sys
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 decode_rc6 = module.decode_rc6

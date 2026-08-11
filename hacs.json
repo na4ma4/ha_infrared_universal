@@ -1,5 +1,5 @@
 {
-  "name": "RC6 Infrared",
+  "name": "Universal Remote Infrared Proxy",
   "render_readme": true,
   "homeassistant": "2026.6.0"
 }

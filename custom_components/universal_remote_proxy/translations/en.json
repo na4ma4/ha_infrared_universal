@@ -1,0 +1,44 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This emitter and receiver selection is already configured.",
+      "no_infrared_hardware": "No infrared emitter or receiver entities are available. Configure ESPHome infrared hardware first."
+    },
+    "error": {
+      "nothing_selected": "Select at least one infrared emitter or receiver."
+    },
+    "step": {
+      "user": {
+        "title": "Set up Universal Remote Infrared Proxy",
+        "description": "Select an infrared emitter, receiver, or both.",
+        "data": {
+          "infrared_emitter_entity_id": "Infrared emitter",
+          "infrared_receiver_entity_id": "Infrared receiver"
+        },
+        "data_description": {
+          "infrared_emitter_entity_id": "Commands sent through the remote entity will use this emitter.",
+          "infrared_receiver_entity_id": "Signals from this receiver will be published and can be learned as named commands."
+        }
+      }
+    }
+  },
+  "entity": {
+    "event": {
+      "received_command": {
+        "name": "Received command",
+        "state_attributes": {
+          "address": {"name": "Address"},
+          "address_hex": {"name": "Address (hex)"},
+          "command": {"name": "Command"},
+          "command_hex": {"name": "Command (hex)"},
+          "mode": {"name": "Mode"},
+          "modulation": {"name": "Modulation"},
+          "pronto_hex": {"name": "Pronto hex"},
+          "protocol": {"name": "Protocol"},
+          "timings": {"name": "Raw timings"},
+          "toggle": {"name": "Toggle"}
+        }
+      }
+    }
+  }
+}
