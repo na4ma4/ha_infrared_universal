@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 from infrared_protocols.commands.nec import NECCommand
-from infrared_protocols.commands.pronto import ProntoCommand
 
 COMPONENT_PATH = (
     Path(__file__).parents[1] / "custom_components" / "universal_remote_proxy"
@@ -30,6 +29,7 @@ for module_name in ("const", "decoder", "commands"):
     spec.loader.exec_module(module)
 
 from universal_remote_proxy.commands import (  # noqa: E402
+    ProntoHexCommand,
     RawCommand,
     RC6Command,
     is_pronto_hex,
@@ -46,9 +46,27 @@ def test_pronto_round_trip() -> None:
     assert is_pronto_hex(pronto)
 
     parsed = parse_command(pronto)
-    assert isinstance(parsed, ProntoCommand)
+    assert isinstance(parsed, ProntoHexCommand)
     assert parsed.to_pronto_hex() == pronto
     assert parse_command(f"pronto:{pronto}").to_pronto_hex() == pronto
+
+
+def test_repeat_only_pronto_from_home_assistant_runtime_error() -> None:
+    pronto = (
+        "0000 0068 0000 0022 0168 00B4 0016 0043 0016 0016 0016 0043 "
+        "0016 0016 0016 0016 0016 0043 0016 0016 0016 0043 0016 0016 "
+        "0016 0043 0016 0016 0016 0043 0016 0043 0016 0016 0016 0043 "
+        "0016 0016 0016 0016 0016 0043 0016 0016 0016 0043 0016 0016 "
+        "0016 0016 0016 0016 0016 0016 0016 0043 0016 0016 0016 0043 "
+        "0016 0016 0016 0043 0016 0043 0016 0043 0016 0043 0016 03DD"
+    )
+
+    parsed = parse_command(pronto)
+
+    assert isinstance(parsed, ProntoHexCommand)
+    assert parsed.modulation == pytest.approx(39_857, abs=1)
+    assert len(parsed.get_raw_timings()) == 68
+    assert parsed.to_pronto_hex() == pronto
 
 
 def test_odd_receive_timings_are_safely_trimmed() -> None:

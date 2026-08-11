@@ -7,11 +7,11 @@ from collections.abc import Iterable
 
 from infrared_protocols.commands import Command
 from infrared_protocols.commands.nec import NECCommand
-from infrared_protocols.commands.pronto import ProntoCommand
 
 from .const import DEFAULT_MODULATION_HZ, RC6_FRAME_PERIOD_US, RC6_MODULATION_HZ
 
 PRONTO_PATTERN = re.compile(r"^[0-9a-fA-F]{4}(?:\s+[0-9a-fA-F]{4})*$")
+PRONTO_REFERENCE_FREQUENCY = 4_145_146
 RC6_UNIT_US = 444
 
 
@@ -61,6 +61,55 @@ class RawCommand(Command):
     def get_raw_timings(self) -> list[int]:
         """Return raw timings, repeating the complete capture if requested."""
         return self.timings * (self.repeat_count + 1)
+
+
+class ProntoHexCommand(RawCommand):
+    """Version-independent command parsed from learned Pronto hex."""
+
+    def __init__(self, pronto_hex: str, *, repeat_count: int = 0) -> None:
+        words = [int(word, 16) for word in pronto_hex.split()]
+        if len(words) < 4:
+            raise ValueError("pronto code must start with a 4 word preamble")
+        if words[0] != 0:
+            raise ValueError("only learned pronto codes (token 0000) are supported")
+        frequency_word, once_pairs, repeat_pairs = words[1:4]
+        if frequency_word == 0:
+            raise ValueError("pronto frequency word must not be zero")
+        timing_words = words[4:]
+        if len(timing_words) != (once_pairs + repeat_pairs) * 2:
+            raise ValueError(
+                "pronto timing data does not match the preamble burst pair counts"
+            )
+        if not timing_words:
+            raise ValueError("pronto code must contain at least one burst pair")
+        if any(word == 0 for word in timing_words):
+            raise ValueError("pronto timing words must not be zero")
+        if repeat_count > 0 and repeat_pairs == 0:
+            raise ValueError("pronto code has no repeat sequence to repeat")
+
+        modulation = round(PRONTO_REFERENCE_FREQUENCY / frequency_word)
+        time_base = 1_000_000 / modulation
+        once_word_count = once_pairs * 2
+
+        def words_to_timings(values: list[int]) -> list[int]:
+            return [
+                duration
+                for index, word in enumerate(values)
+                for duration in [
+                    min(round(word * time_base), 0xFFFF)
+                    * (1 if index % 2 == 0 else -1)
+                ]
+            ]
+
+        once_timings = words_to_timings(timing_words[:once_word_count])
+        repeat_timings = words_to_timings(timing_words[once_word_count:])
+        timings = (once_timings or repeat_timings) + repeat_timings * repeat_count
+        super().__init__(timings, modulation=modulation)
+        self.pronto_hex = " ".join(f"{word:04X}" for word in words)
+
+    def to_pronto_hex(self) -> str:
+        """Return the canonical Pronto representation supplied by the caller."""
+        return self.pronto_hex
 
 
 def _append_duration(timings: list[int], duration: int) -> None:
@@ -177,7 +226,7 @@ def parse_command(command: str, repeat_count: int = 0) -> Command:
         raise ValueError("repeat_count must be non-negative")
 
     if is_pronto_hex(value):
-        return ProntoCommand.from_pronto_hex(value, repeat_count=repeat_count)
+        return ProntoHexCommand(value, repeat_count=repeat_count)
 
     prefix, separator, payload = value.partition(":")
     if not separator:
@@ -187,7 +236,10 @@ def parse_command(command: str, repeat_count: int = 0) -> Command:
     prefix = prefix.lower()
 
     if prefix == "pronto":
-        return ProntoCommand.from_pronto_hex(payload.strip(), repeat_count=repeat_count)
+        pronto_hex = payload.strip()
+        if not is_pronto_hex(pronto_hex):
+            raise ValueError("pronto words must each contain exactly 4 hex digits")
+        return ProntoHexCommand(pronto_hex, repeat_count=repeat_count)
     if prefix == "raw":
         parts = payload.replace(",", " ").split()
         if not parts:
@@ -236,8 +288,21 @@ def timings_to_pronto_hex(
     if not values:
         return None
     try:
-        return ProntoCommand.from_raw_timings(
-            values, modulation=modulation
-        ).to_pronto_hex()
-    except (OverflowError, ValueError):
+        modulation = modulation or DEFAULT_MODULATION_HZ
+        if modulation <= 0:
+            return None
+        time_base = 1_000_000 / modulation
+        timing_words = []
+        for timing in values:
+            compensated = timing - 20 if timing > 0 else -timing + 20
+            word = round((compensated + time_base / 2) / time_base)
+            if not 0 < word <= 0xFFFF:
+                return None
+            timing_words.append(word)
+        frequency_word = round(PRONTO_REFERENCE_FREQUENCY / modulation)
+        if not 0 < frequency_word <= 0xFFFF:
+            return None
+        words = [0, frequency_word, len(values) // 2, 0, *timing_words]
+        return " ".join(f"{word:04X}" for word in words)
+    except (OverflowError, ValueError, ZeroDivisionError):
         return None

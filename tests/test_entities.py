@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from homeassistant.components.infrared import InfraredReceivedSignal
 from homeassistant.components.remote import ATTR_DEVICE, ATTR_NUM_REPEATS
-from infrared_protocols.commands.pronto import ProntoCommand
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.universal_remote_proxy import (
@@ -14,7 +13,10 @@ from custom_components.universal_remote_proxy import (
 from custom_components.universal_remote_proxy import (
     async_unload_entry as async_unload_integration_entry,
 )
-from custom_components.universal_remote_proxy.commands import timings_to_pronto_hex
+from custom_components.universal_remote_proxy.commands import (
+    parse_command,
+    timings_to_pronto_hex,
+)
 from custom_components.universal_remote_proxy.const import (
     CONF_INFRARED_EMITTER_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
@@ -149,9 +151,7 @@ async def test_learning_rc6_without_carrier_uses_36_khz(hass) -> None:
     await remote.async_learn_command(device="television", command=["power"])
 
     pronto = store.data["television"]["power"][0]
-    assert ProntoCommand.from_pronto_hex(pronto).modulation == pytest.approx(
-        36_000, abs=100
-    )
+    assert parse_command(pronto).modulation == pytest.approx(36_000, abs=100)
 
 
 def test_event_decodes_nec_and_generates_pronto() -> None:
