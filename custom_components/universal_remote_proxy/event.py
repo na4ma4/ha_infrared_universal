@@ -91,28 +91,29 @@ class UniversalRemoteReceivedEvent(InfraredReceiverConsumerEntity, EventEntity):
             )
         else:
             nec = NECCommand.from_raw_timings(timings)
-            if nec is not None:
-                protocol = "nec"
-                address_low = nec.address & 0xFF
-                address_high = (nec.address >> 8) & 0xFF
-                address = (
-                    address_low
-                    if address_low ^ address_high == 0xFF
-                    else nec.address
-                )
-                repeat_key = (protocol, address, nec.command, nec.subfunction)
-                attributes.update(
-                    {
-                        "address": address,
-                        "command": nec.command,
-                        "address_hex": (
-                            f"0x{address:02X}"
-                            if address <= 0xFF
-                            else f"0x{address:04X}"
-                        ),
-                        "command_hex": f"0x{nec.command:02X}",
-                    }
-                )
+            if nec is None:
+                return
+            protocol = "nec"
+            address_low = nec.address & 0xFF
+            address_high = (nec.address >> 8) & 0xFF
+            address = (
+                address_low
+                if address_low ^ address_high == 0xFF
+                else nec.address
+            )
+            repeat_key = (protocol, address, nec.command, nec.subfunction)
+            attributes.update(
+                {
+                    "address": address,
+                    "command": nec.command,
+                    "address_hex": (
+                        f"0x{address:02X}"
+                        if address <= 0xFF
+                        else f"0x{address:04X}"
+                    ),
+                    "command_hex": f"0x{nec.command:02X}",
+                }
+            )
 
         now = monotonic()
         is_repeat = (
